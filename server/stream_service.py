@@ -5,7 +5,7 @@ import os
 import socket
 import struct
 import time
-from multiprocessing import Array, Process, Value
+from multiprocessing import Array, Condition, Process, Value
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,8 @@ class StreamService:
 
     def __init__(self):
         self.frame_length = Value("i", 0)
-        self.frame_buffer = Array(ctypes.c_ubyte, 90000, lock=True)
+        self.frame_buffer = Array(ctypes.c_ubyte, 90000)
+        self.condition = Condition()
         self._proc = None
 
     def __del__(self):
@@ -52,7 +53,7 @@ class StreamService:
         """
         self._proc = Process(
             target=StreamService.process_stream,
-            args=(self.frame_buffer, self.frame_length),
+            args=(self.frame_buffer, self.frame_length, self.condition),
         )
         self._proc.start()
         return self
@@ -62,7 +63,7 @@ class StreamService:
         return self
 
     @staticmethod
-    def process_stream(frame_buffer, frame_length, port=25000):
+    def process_stream(frame_buffer, frame_length, condition, port=25000):
         """
         Runs the socket server. Puts the latest frame in the given frame_buffer.
         """
@@ -96,14 +97,13 @@ class StreamService:
                         break
 
                     # Read the bytes of the image into the process-shared frame_buffer
-                    lock = frame_buffer.get_lock()
-                    lock.acquire()
+                    with condition:
+                        frame_length.value = image_len
 
-                    frame_length.value = image_len
-                    for i, b in enumerate(bytearray(conn.read(image_len))):
-                        frame_buffer.get_obj()[i] = b
+                        for i, b in enumerate(bytearray(conn.read(image_len))):
+                            frame_buffer.get_obj()[i] = b
 
-                    lock.release()
+                        condition.notify_all()
             finally:
                 print("Connection closed")
                 conn.close()
@@ -119,24 +119,22 @@ class StreamService:
                     print("Process is dead.")
                     break
 
-                lock = self.frame_buffer.get_lock()
-                lock.acquire()
+                with self.condition:
+                    self.condition.wait()
 
-                yield b"--FRAME\r\n"
+                    yield b"--FRAME\r\n"
 
-                length = self.frame_length.value
+                    length = self.frame_length.value
 
-                yield h("Content-Type", "image/jpeg")
-                yield h("Content-Length", length)
-                yield b"\r\n"
+                    yield h("Content-Type", "image/jpeg")
+                    yield h("Content-Length", length)
+                    yield b"\r\n"
 
-                buf = io.BytesIO()
-                buf.write(bytearray(self.frame_buffer.get_obj())[:length])
-                yield buf.getvalue()
+                    buf = io.BytesIO()
+                    buf.write(bytearray(self.frame_buffer.get_obj())[:length])
+                    yield buf.getvalue()
 
-                yield b"\r\n"
-
-                lock.release()
+                    yield b"\r\n"
 
         except Exception as e:
             logger.warning(f"Removed streaming client {e}")

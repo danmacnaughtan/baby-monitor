@@ -10,6 +10,8 @@ from fastapi.templating import Jinja2Templates
 from stream_service import StreamService
 
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -17,8 +19,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 stream_service = None
-
-logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")
