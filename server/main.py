@@ -116,7 +116,7 @@ async def login_page(session_token: t.Optional[str] = Cookie(None)):
 
 
 @app.get("/stream.mjpg")
-def stream(allowed: bool = Depends(is_valid_session)):
+async def stream(allowed: bool = Depends(is_valid_session)):
     global stream_service
 
     if not allowed:

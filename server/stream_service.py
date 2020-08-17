@@ -1,3 +1,4 @@
+import asyncio
 import ctypes
 import io
 import logging
@@ -115,7 +116,7 @@ class StreamService:
 
         sock.close()
 
-    def generate_frames(self):
+    async def generate_frames(self):
         h = lambda key, value: f"{key}: {value}\r\n".encode("latin-1", "strict")
 
         try:
@@ -141,5 +142,10 @@ class StreamService:
 
                     yield b"\r\n"
 
-        except Exception as e:
-            logger.warning(f"Removed streaming client {e}")
+                await asyncio.sleep(0.001)
+
+        except AssertionError:
+            pass
+
+        except Exception:
+            logger.exception("Removed streaming client")
