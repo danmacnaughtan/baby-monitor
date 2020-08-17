@@ -37,7 +37,7 @@ class StreamService:
 
     def __init__(self):
         self.frame_length = Value("i", 0)
-        self.frame_buffer = Array(ctypes.c_ubyte, 90000)
+        self.frame_buffer = Array(ctypes.c_ubyte, 128000)
         self.condition = Condition()
         self._proc = None
 
@@ -69,7 +69,7 @@ class StreamService:
         """
         host = socket.gethostname()
 
-        print(f"Socket server running at: tcp://{host}:{port}")
+        print(f"Socket server listening at: tcp://{host}:{port}")
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -100,8 +100,13 @@ class StreamService:
                     with condition:
                         frame_length.value = image_len
 
-                        for i, b in enumerate(bytearray(conn.read(image_len))):
-                            frame_buffer.get_obj()[i] = b
+                        try:
+                            for i, b in enumerate(bytearray(conn.read(image_len))):
+                                frame_buffer.get_obj()[i] = b
+                        except IndexError:
+                            logger.error(
+                                f"Error writing frame buffer. (image_len: {image_len})"
+                            )
 
                         condition.notify_all()
             finally:

@@ -57,7 +57,7 @@ def stream(*, feed, camera, host, port=DEFAULT_PORT):
 
             stream_feed(conn, feed, camera)
 
-        except ConnectionRefusedError:
+        except (ConnectionRefusedError, OSError):
             time.sleep(5)
 
         except BrokenPipeError:
