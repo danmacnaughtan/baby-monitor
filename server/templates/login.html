@@ -3,31 +3,29 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="30">
 
     <link rel="stylesheet" href="static/normalize.css">
     <link rel="stylesheet" href="static/awsm.black.css">
     <link rel="stylesheet" href="static/styles.css">
 
-    <title>Baby Monitor</title>
+    <title>Login - Baby Monitor</title>
   </head>
-
   <body>
     <header>
       <h1>Baby Monitor</h1>
-      <nav>
-        <ul>
-          <li><a href="logout">Logout</a></li>
-        </ul>
-      </nav>
     </header>
     <main>
       <article>
-        <section>
-          <!--<img src="stream.mjpg" width="640" height="480" />-->
-          <h4>Live Stream</h4>
-          <img src="stream.mjpg" />
-        </section>
+        <form action="login", method="post">
+          <h2>Login</h2>
+          <fieldset>
+            <label for="username">Username</label>
+            <input id="username" type="text" name="username" />
+            <label for="password">password</label>
+            <input id="password" type="password" name="password" />
+            <input type="submit" value="Submit" />
+          </fieldset>
+        </form>
       </article>
     </main>
   </body>

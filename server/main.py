@@ -1,12 +1,14 @@
+import datetime
 import io
 import json
 import logging
 import secrets
+import typing as t
 
 import bcrypt
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, status
 from fastapi.requests import Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -33,32 +35,39 @@ security = HTTPBasic()
 stream_service = StreamService()
 
 
-# Load users from file... passwords hashed w/ bcrypt
 try:
     with open("data/users.json", "r") as f:
         users = json.loads(f.read())
 except FileNotFoundError:
     users = {}
 
-# Key: username
-# Value: {'token': <token>, 'expiry': <expiry>}
 sessions = {}
 
 
-def auth_user(credentials: HTTPBasicCredentials = Depends(security)):
-    valid_usr = credentials.username in users
-    valid_pwd = bcrypt.checkpw(
-        credentials.password.encode(), users.get(credentials.username).encode()
-    )
+def is_user(username: str, password: str) -> bool:
+    global users
+    valid_usr = username in users
+    valid_pwd = bcrypt.checkpw(password.encode(), users.get(username).encode())
+    return valid_usr and valid_pwd
 
-    if not (valid_usr and valid_pwd):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
 
-    return credentials.username
+def create_session(username: str) -> str:
+    global sessions
+    token = secrets.token_hex(16)
+    expiry = (datetime.datetime.now() + datetime.timedelta(days=1)).timestamp()
+    sessions[token] = {"user": username, "expiry": expiry}
+    return token
+
+
+def is_valid_session(session_token: t.Optional[str] = Cookie(None)) -> bool:
+    global sessions
+    if session_token not in sessions:
+        return False
+    _, expiry = sessions.get(session_token).values()
+    if expiry < datetime.datetime.now().timestamp():
+        sessions.pop(session_token)
+        return False
+    return True
 
 
 @app.on_event("startup")
@@ -74,13 +83,45 @@ def shutdown_event():
 
 
 @app.get("/")
-async def index(request: Request, user: str = Depends(auth_user)):
+async def index(request: Request, allowed: bool = Depends(is_valid_session)):
+    if not allowed:
+        return RedirectResponse("/login")
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.post("/login")
+async def login(
+    username: t.Optional[str] = Form(None), password: t.Optional[str] = Form(None)
+):
+    if not (all((username, password)) and is_user(username, password)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+        )
+    resp = RedirectResponse("/", status_code=303)
+    resp.set_cookie(key="session_token", value=create_session(username))
+    return resp
+
+
+@app.get("/login")
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/logout")
+async def login_page(session_token: t.Optional[str] = Cookie(None)):
+    global sessions
+    sessions.pop(session_token, None)
+    return RedirectResponse("/login")
+
+
 @app.get("/stream.mjpg")
-def stream(user: str = Depends(auth_user)):
+def stream(allowed: bool = Depends(is_valid_session)):
     global stream_service
+
+    if not allowed:
+        return RedirectResponse("/login")
+
     return StreamingResponse(
         stream_service.generate_frames(),
         headers={
