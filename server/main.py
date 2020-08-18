@@ -17,7 +17,7 @@ from stream_service import StreamService
 
 
 logging.basicConfig(
-    filename="stream.log",
+    filename="server.log",
     format="%(asctime)s %(name)s %(levelname)s: %(message)s",
     level=logging.INFO,
 )
