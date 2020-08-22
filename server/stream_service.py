@@ -4,9 +4,11 @@ import io
 import logging
 import os
 import socket
+import ssl
 import struct
-import time
 from multiprocessing import Array, Condition, Process, Value
+
+import config
 
 
 logger = logging.getLogger(__name__)
@@ -14,26 +16,6 @@ logger = logging.getLogger(__name__)
 
 class StreamService:
     """
-    Example usage:
-
-        from PIL import Image
-
-        service = StreamService().start()
-
-        while True:
-            buf = io.BytesIO()
-
-            lock = service.frame_buffer.get_lock()
-            lock.acquire()
-
-            length = service.frame_length.value
-            buf.write(bytearray(service.frame_buffer.get_obj())[:length])
-
-            lock.release()
-
-            if buf.tell():
-                buf.seek(0)
-                image = Image.open(buf)
     """
 
     def __init__(self):
@@ -68,79 +50,93 @@ class StreamService:
         """
         Runs the socket server. Puts the latest frame in the given frame_buffer.
         """
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(config.CERT_PEM_FILE, config.CERT_KEY_FILE)
+
         host = socket.gethostname()
 
-        print(f"Socket server listening at: tcp://{host}:{port}")
+        logger.info(f"Socket server listening at: tcp://{host}:{port}")
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("", port))
-        sock.listen(0)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("", port))
+            sock.listen(0)
 
-        # If the connection to the pi closes, we want to just wait for it to come up again.
-        while True:
-            # Accept a single connection and make a file-like object out of it.
-            conn = sock.accept()[0].makefile("rb")
+            while True:
+                new_sock, fromaddr = sock.accept()
 
-            # TODO: Authenticate the connection
+                with context.wrap_socket(new_sock, server_side=True) as ssock:
+                    with ssock.makefile("rb") as conn:
 
-            print("Connected...")
-
-            try:
-                while True:
-                    # Read the length of the image as a 32-bit unsigned int.
-                    image_len = struct.unpack("<L", conn.read(struct.calcsize("<L")))[0]
-
-                    # print("Received:", image_len)
-
-                    # If the length is 0, quit the loop.
-                    if not image_len:
-                        break
-
-                    # Read the bytes of the image into the process-shared frame_buffer
-                    with condition:
-                        frame_length.value = image_len
+                        if not StreamService.authenticate_connection(conn, fromaddr):
+                            continue
 
                         try:
-                            for i, b in enumerate(bytearray(conn.read(image_len))):
-                                frame_buffer.get_obj()[i] = b
-                        except IndexError:
-                            logger.error(
-                                f"Error writing frame buffer. (image_len: {image_len})"
+                            StreamService.recieve_frames(
+                                conn, frame_buffer, frame_length, condition
                             )
+                        finally:
+                            logger.info("Connection closed")
 
-                        condition.notify_all()
-            finally:
-                print("Connection closed")
-                conn.close()
+    @staticmethod
+    def authenticate_connection(conn, fromaddr) -> bool:
+        # TODO: Authenticate the connection
+        logger.info(f"Authentication failed ({fromaddr})")
+        return False
 
-        sock.close()
+    @staticmethod
+    def recieve_frames(conn, frame_buffer, frame_length, condition):
+
+        logger.info("Monitor is connected.")
+
+        while True:
+            # Read the length of the image as a 32-bit unsigned int.
+            image_len = struct.unpack("<L", conn.read(struct.calcsize("<L")))[0]
+
+            # If the length is 0, quit the loop.
+            if not image_len:
+                break
+
+            # Read the bytes of the image into the process-shared frame_buffer
+            with condition:
+                frame_length.value = image_len
+
+                try:
+                    for i, b in enumerate(bytearray(conn.read(image_len))):
+                        frame_buffer.get_obj()[i] = b
+                except IndexError:
+                    logger.error(
+                        f"Error writing to frame buffer (image_len: {image_len})"
+                    )
+
+                condition.notify_all()
 
     async def generate_frames(self):
+        """
+        A continuous async generator of mjpeg frames.
+        """
+
         h = lambda key, value: f"{key}: {value}\r\n".encode("latin-1", "strict")
 
         try:
             while True:
                 if not self._proc.is_alive():
-                    print("Process is dead.")
                     break
 
                 with self.condition:
                     self.condition.wait()
 
-                    yield b"--FRAME\r\n"
-
                     length = self.frame_length.value
 
-                    yield h("Content-Type", "image/jpeg")
-                    yield h("Content-Length", length)
-                    yield b"\r\n"
-
                     buf = io.BytesIO()
-                    buf.write(bytearray(self.frame_buffer.get_obj())[:length])
-                    yield buf.getvalue()
+                    buf.write(b"--FRAME\r\n")
+                    buf.write(h("Content-Type", "image/jpeg"))
+                    buf.write(h("Content-Length", length))
+                    buf.write(b"\r\n")
+                    buf.write(bytes(bytearray(self.frame_buffer.get_obj())[:length]))
+                    buf.write(b"\r\n")
 
-                    yield b"\r\n"
+                    yield buf.getvalue()
 
                 await asyncio.sleep(0.001)
 

@@ -3,6 +3,7 @@
 import io
 import logging
 import socket
+import ssl
 import struct
 import sys
 import time
@@ -48,14 +49,18 @@ def stream(*, feed, camera, host, port=DEFAULT_PORT):
     """
     while True:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((host, port))
+            context = ssl.create_default_context()
 
-            conn = sock.makefile("wb")
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                with context.wrap_socket(sock, server_hostname=host) as ssock:
 
-            logger.info(f"Connected to host ({host}:{port})")
+                    ssock.connect((host, port))
 
-            stream_feed(conn, feed, camera)
+                    conn = ssock.makefile("wb")
+
+                    logger.info(f"Connected to host ({host}:{port})")
+
+                    stream_feed(conn, feed, camera)
 
         except (ConnectionRefusedError, OSError):
             time.sleep(5)
@@ -76,13 +81,6 @@ def stream(*, feed, camera, host, port=DEFAULT_PORT):
 def stream_feed(conn, feed, camera):
     """
     Streams the feed of image frames to the server connection.
-
-    The protocol being used is based on:
-    https://picamera.readthedocs.io/en/release-1.13/recipes1.html#capturing-to-a-network-stream
-
-    || <image-len> | <image-data> | <image-len> | <image-data> | ... | <image-len> ||
-    || (68702)     |              | (87532)     |              | ... | (0)         ||
-    || 4 bytes     | 68702 bytes  | 4 bytes     | 87532 bytes  | ... | 4 bytes     ||
     """
     while True:
         if camera.closed:

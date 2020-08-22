@@ -15,33 +15,81 @@ connections to watch the stream over the internet.
 
 TBD
 
-### Running the stream demo
+### Running the streaming client on the RaspberryPi
 
-Copy the contents of `pi/` onto the raspberry pi. In order for us to run the service while
-not logged in, we can use [Supervisor](http://supervisord.org/). Supervisor manages and
-keeps your services running once you log out of your session or reboot the device.
+Copy `pi/stream.py` onto the RaspberryPi. I'm using [Supervisor](http://supervisord.org/)
+as the process manager, so the stream client runs automatically, even when the device
+reboots.
 
-Run the following commands:
+The setup process looks like this:
 
 ```bash
 # Install supervisor
 sudo apt-get update
 sudo apt-get -y install supervisor
 
+HOSTNAME=<hostname> # enter your server's hostname here
+
 # Add the configuration to run the stream demo
-sudo echo "\
+echo "\
 [program:stream]
-command=python3 stream.py
+command=python3 stream.py ${HOSTNAME}
 directory=/home/pi/
 user=root
 autostart=true
 autorestart=true
 stopasgroup=true
-killasgroup=true" >> /etc/supervisor/conf.d/stream.conf
+killasgroup=true" >> stream.conf
+
+sudo mv stream.conf /etc/supervisor/conf.d/
 
 # Tell supervisor to load in new configurations and start your service
 sudo supervisorctl update
 ```
+
+### Creating a self-signed certificate for debugging
+
+If you want to experiment running the server and your RaspberryPi on your local network,
+you will need to make sure a proper certificate is set up to allow for the TLS secure
+socket to function properly.
+
+Create a self-signed certificate for debugging (check out this
+[tutorial](https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-apache-on-centos-8)
+for more details):
+
+```bash
+sudo openssl req \
+    -x509 \
+    -nodes \
+    -days 365 \
+    -newkey rsa:2048 \
+    -keyout certs/selfsigned.key \
+    -out certs/selfsigned.crt
+```
+
+- When answering the questions, be sure to remember to use the right host name as the FQDN.
+- You may need to enable read permissions. You can use `sudo chmod a+r certs/selfsigned.*`.
+
+Now you want to add this cert to the RaspberryPi's `ca-certificates` list (more details
+[here](https://raspberrypi.stackexchange.com/questions/76419/entrusted-certificates-installation)).
+
+Create a local cert directory:
+
+```bash
+mkdir /usr/share/ca-certificates/local
+```
+
+Copy `selfsigned.crt` to this directory on your RaspberryPi, then reconfigure the
+`ca-certificates` package:
+
+```bash
+dpkg-reconfigure ca-certificates
+```
+
+When prompted, choose the `ask` option, then select your new certificate by pressing the
+`space` key.
+
+Test that it works and then you're ready for local network debugging!
 
 ## Research
 

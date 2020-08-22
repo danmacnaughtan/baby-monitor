@@ -1,3 +1,4 @@
+certs/
 *.log
 __pycache__/
 env/
