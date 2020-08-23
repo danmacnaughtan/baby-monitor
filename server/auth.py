@@ -105,9 +105,12 @@ def create_access_token(name: str) -> str:
 
     token_hash = bcrypt.hashpw(token.encode(), bcrypt.gensalt())
 
-    access_tokens.update({lookup: {"token_hash": token_hash, "name": name}})
+    access_tokens[lookup] = {"token_hash": token_hash.decode(), "name": name}
 
-    return f"{lookup}.{key}"
+    with open(config.ACCESS_TOKENS_FILE, "w") as f:
+        f.write(json.dumps(access_tokens, indent=4))
+
+    return f"{lookup}.{token}"
 
 
 def is_valid_access_token(access_token: str) -> bool:

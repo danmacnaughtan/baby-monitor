@@ -7,7 +7,7 @@ import auth
 import config
 
 
-def createuser(*args, **kwargs):
+def create_user(*args, **kwargs):
     print("*** Creating a new user ***")
 
     usr = input("Enter username: ")
@@ -30,13 +30,30 @@ def createuser(*args, **kwargs):
     print(f"User, {usr}, added.")
 
 
+def create_access_token(*args, **kwargs):
+    print("*** Creating a new access token ***")
+
+    name = input("Enter a name for the access token: ")
+
+    token = auth.create_access_token(name)
+
+    print("Access token created.")
+    print("\nWARNING: Save this token now. It is the only time it will be shown:")
+    print(f"\n{token}\n")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     subparsers = parser.add_subparsers(title="commands")
 
-    parser_createuser = subparsers.add_parser("createuser", help="Create a new user.")
-    parser_createuser.set_defaults(func=createuser)
+    parser_create_user = subparsers.add_parser("create_user", help="Create a new user.")
+    parser_create_user.set_defaults(func=create_user)
+
+    parser_create_access_token = subparsers.add_parser(
+        "create_access_token", help="Create a new access token."
+    )
+    parser_create_access_token.set_defaults(func=create_access_token)
 
     args = parser.parse_args()
     if hasattr(args, "func"):
