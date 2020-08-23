@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import io
 import logging
 import socket
@@ -41,7 +42,7 @@ class StreamingOutput:
         return self.buffer.write(buf)
 
 
-def stream(*, feed, camera, host, port=DEFAULT_PORT):
+def stream(*, feed, camera, host, access_token, port=DEFAULT_PORT):
     """
     Connects to the stream server and stream the video feed to it.
 
@@ -60,7 +61,7 @@ def stream(*, feed, camera, host, port=DEFAULT_PORT):
 
                     logger.info(f"Connected to host ({host}:{port})")
 
-                    stream_feed(conn, feed, camera)
+                    stream_feed(conn, feed, camera, access_token)
 
         except (ConnectionRefusedError, OSError):
             time.sleep(5)
@@ -78,10 +79,15 @@ def stream(*, feed, camera, host, port=DEFAULT_PORT):
                 break
 
 
-def stream_feed(conn, feed, camera):
+def stream_feed(conn, feed, camera, access_token):
     """
     Streams the feed of image frames to the server connection.
     """
+
+    # Sending the access token first. It will always be 41 bytes.
+    conn.write(access_token.encode())
+    conn.flush()
+
     while True:
         if camera.closed:
             # Signal that the stream is done
@@ -102,7 +108,10 @@ def stream_feed(conn, feed, camera):
         conn.write(frame)
 
 
-def main(host, port=DEFAULT_PORT):
+def main(*, host, access_token, port=None):
+    if port is None:
+        port = DEFAULT_PORT
+
     with picamera.PiCamera(resolution="640x480", framerate=24) as camera:
 
         output = StreamingOutput()
@@ -113,20 +122,30 @@ def main(host, port=DEFAULT_PORT):
         camera.start_recording(output, format="mjpeg")
 
         try:
-            stream(feed=output, camera=camera, host=host, port=port)
+            stream(
+                feed=output,
+                camera=camera,
+                host=host,
+                port=port,
+                access_token=access_token,
+            )
         finally:
             camera.stop_recording()
 
 
 if __name__ == "__main__":
 
-    if len(sys.argv) < 2:
-        print("Usage: stream.py HOST [PORT]")
-        sys.exit(0)
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--host", required=True)
+    parser.add_argument("--port")
+    parser.add_argument("--token", dest="access_token", required=True)
+
+    kwargs = dict(parser.parse_args()._get_kwargs())
 
     logger.info("-- REBOOT --")
 
     try:
-        main(*sys.argv[1:])
+        main(**kwargs)
     except Exception:
         logger.exception("Non recoverable error occurred.")

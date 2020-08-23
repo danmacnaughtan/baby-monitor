@@ -8,6 +8,7 @@ import ssl
 import struct
 from multiprocessing import Array, Condition, Process, Value
 
+import auth
 import config
 
 
@@ -15,9 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class StreamService:
-    """
-    """
-
     def __init__(self):
         self.frame_length = Value("i", 0)
         self.frame_buffer = Array(ctypes.c_ubyte, 128000)
@@ -49,6 +47,13 @@ class StreamService:
     def process_stream(frame_buffer, frame_length, condition, port=25000):
         """
         Runs the socket server. Puts the latest frame in the given frame_buffer.
+
+        The socket server runs continuously and listens for exactly one connection. If the
+        connection is closed for any reason, it automatically listens for the next
+        connection.
+
+        The connection is secured with TLS, and the client is required to send an
+        authorized access token before the streaming begins.
         """
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(config.CERT_PEM_FILE, config.CERT_KEY_FILE)
@@ -68,7 +73,8 @@ class StreamService:
                 with context.wrap_socket(new_sock, server_side=True) as ssock:
                     with ssock.makefile("rb") as conn:
 
-                        if not StreamService.authenticate_connection(conn, fromaddr):
+                        if not auth.is_valid_access_token(conn.read(41).decode()):
+                            logger.info(f"Authentication failed ({fromaddr})")
                             continue
 
                         try:
@@ -77,12 +83,6 @@ class StreamService:
                             )
                         finally:
                             logger.info("Connection closed")
-
-    @staticmethod
-    def authenticate_connection(conn, fromaddr) -> bool:
-        # TODO: Authenticate the connection
-        logger.info(f"Authentication failed ({fromaddr})")
-        return False
 
     @staticmethod
     def recieve_frames(conn, frame_buffer, frame_length, condition):
@@ -124,7 +124,7 @@ class StreamService:
                     break
 
                 with self.condition:
-                    self.condition.wait()
+                    self.condition.wait(timeout=30)
 
                     length = self.frame_length.value
 
