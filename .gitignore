@@ -1,3 +1,4 @@
+*.tar.gz
 certs/
 *.log
 __pycache__/

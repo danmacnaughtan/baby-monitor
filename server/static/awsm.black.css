@@ -68,7 +68,7 @@ nav li{
   margin-bottom:0.25em;
 }
 nav a:visited{
-  color:#fd9a49;
+  color:#49acfc;
 }
 nav a:hover{
   color:#75c53c;
@@ -244,7 +244,7 @@ article > footer{
 }
 
 a{
-  color:#fd9a49;
+  color:#49acfc;
 }
 a:visited{
   color:#7b4a29;

@@ -7,17 +7,17 @@ settings.
 
 This project is an attempt to build my own, secure, private, online baby monitor.
 
-First I plan to just get the basic camera stream live on my local network. Next I want to
-stream the video to my own digital ocean server, and allow secure authenticated
-connections to watch the stream over the internet.
-
-## Pi
+## Server Setup
 
 TBD
 
-### Running the streaming client on the RaspberryPi
+## Raspberry Pi Setup
 
-Copy `pi/stream.py` onto the RaspberryPi. I'm using [Supervisor](http://supervisord.org/)
+TBD
+
+### Running the streaming client on the Raspberry Pi
+
+Copy `pi/stream.py` onto the Raspberry Pi. I'm using [Supervisor](http://supervisord.org/)
 as the process manager, so the stream client runs automatically, even when the device
 reboots.
 
@@ -29,11 +29,12 @@ sudo apt-get update
 sudo apt-get -y install supervisor
 
 HOSTNAME=<hostname> # enter your server's hostname here
+ACCESS_TOKEN=<access_token> # enter your server's access token
 
 # Add the configuration to run the stream demo
 echo "\
 [program:stream]
-command=python3 stream.py ${HOSTNAME}
+command=python3 stream.py --host ${HOSTNAME} --token ${ACCESS_TOKEN}
 directory=/home/pi/
 user=root
 autostart=true
@@ -49,7 +50,7 @@ sudo supervisorctl update
 
 ### Creating a self-signed certificate for debugging
 
-If you want to experiment running the server and your RaspberryPi on your local network,
+If you want to experiment running the server and your Raspberry Pi on your local network,
 you will need to make sure a proper certificate is set up to allow for the TLS secure
 socket to function properly.
 
@@ -70,7 +71,7 @@ sudo openssl req \
 - When answering the questions, be sure to remember to use the right host name as the FQDN.
 - You may need to enable read permissions. You can use `sudo chmod a+r certs/selfsigned.*`.
 
-Now you want to add this cert to the RaspberryPi's `ca-certificates` list (more details
+Now you want to add this cert to the Raspberry Pi's `ca-certificates` list (more details
 [here](https://raspberrypi.stackexchange.com/questions/76419/entrusted-certificates-installation)).
 
 Create a local cert directory:
@@ -79,7 +80,7 @@ Create a local cert directory:
 mkdir /usr/share/ca-certificates/local
 ```
 
-Copy `selfsigned.crt` to this directory on your RaspberryPi, then reconfigure the
+Copy `selfsigned.crt` to this directory on your Raspberry Pi, then reconfigure the
 `ca-certificates` package:
 
 ```bash
@@ -91,22 +92,11 @@ When prompted, choose the `ask` option, then select your new certificate by pres
 
 Test that it works and then you're ready for local network debugging!
 
-## Research
+## Resources
 
-[Tutorial](https://randomnerdtutorials.com/video-streaming-with-raspberry-pi-camera/)
-
-[Web streaming
-docs](https://picamera.readthedocs.io/en/latest/recipes2.html#web-streaming)
-
-[Live video streaming over
-network](https://www.pyimagesearch.com/2019/04/15/live-video-streaming-over-network-with-opencv-and-imagezmq/)
-
-### More Resources
-
+- https://picamera.readthedocs.io/en/latest/recipes2.html#web-streaming
+- https://www.pyimagesearch.com/2019/04/15/live-video-streaming-over-network-with-opencv-and-imagezmq/
 - https://linuxize.com/post/how-to-install-raspbian-on-raspberry-pi/
 - https://www.raspberrypi.org/documentation/usage/camera/raspicam/
-- https://picamera.readthedocs.io/en/latest/recipes2.html#web-streaming
-- https://github.com/jeffbass/imagezmq
-- https://stackoverflow.com/questions/50058811/how-to-access-video-stream-from-an-ip-camera-using-opencv-in-python
 - https://raspberrypi.stackexchange.com/questions/31705/capturing-video-in-low-light
 - https://pimylifeup.com/raspberry-pi-light-sensor/
