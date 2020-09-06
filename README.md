@@ -1,21 +1,60 @@
-# 👶 Baby Monitor 🎥
+# 🦉 Baby Monitor
 
-I like the idea of having a baby monitor, but I don't like the idea of using any old
-off-the-shelf baby monitor/surveillance camera connected to the internet. There is a
-history of these devices logging your data (pictures of my baby!) and insecure network
-settings.
+I'm having a baby, so I built a video baby monitor. It's a Raspberry Pi streaming video to
+a hosted web application, so I can conveniently access it from anywhere.
 
-This project is an attempt to build my own, secure, private, online baby monitor.
+<p align="center">
+    <img src="https://user-images.githubusercontent.com/6351865/91840558-df6f2a80-ec1e-11ea-990a-200597e8506a.png" alt="Login screenshot" width="200">
+    <img src="https://user-images.githubusercontent.com/6351865/91843702-2e6b8e80-ec24-11ea-8373-fc2d7cb43a1a.png" alt="Day screenshot" width="200">
+    <img src="https://user-images.githubusercontent.com/6351865/91840637-03cb0700-ec1f-11ea-9ad6-9acff5ff8e0b.png" alt="Night screenshot" width="200">
+</p>
+
+I didn't like the idea of using any off-the-shelf baby monitor/surveillance camera
+connected to the internet. Closed circuit cameras don't offer the same convenience, and
+there is still the risk of some form of logging and/or telemetry if the camera needs to be on
+WiFi.
+
+I put some effort into making my baby monitor private and secure. The video feed uses TLS,
+and any data being sent to the hosted web application requires an access token. Accessing
+the frontend of the application requires a simple username and password.
+
+## Hardware
+
+* Raspberry Pi 3+
+* Raspberry Pi Camera NoIR
+* IR Illuminator light
 
 ## Server Setup
 
-TBD
+Copy over the `server/` directory to your choice of hosting service (or home server). Make
+sure Python 3 and Pipenv are installed. Run `pipenv sync` to make sure all dependencies
+are installed. Run `pipenv run uvicorn main:app` to change the server.
+
+I recommend using something like [Supervisor](http://supervisord.org/) to manage the
+server process. See [this section](running-the-streaming-client-on-the-raspberry-pi) for
+an example.
+
+### Create credentials
+
+Run the following command and follow the prompts to create a new username and password
+that you will use to login:
+
+```bash
+python cli.py create_user
+```
+
+Next you will need to create an access token for the Raspberry Pi to connect to the server
+(using an auth token here protects us from letting anything that knows about our server
+from connecting and sending unwanted data):
+
+```bash
+python cli.py create_access_token
+```
+
+Copy the access token and save it in a safe place. This is the only time it is shown to
+you, and it is never stored in plain text in the server data files.
 
 ## Raspberry Pi Setup
-
-TBD
-
-### Running the streaming client on the Raspberry Pi
 
 Copy `pi/stream.py` onto the Raspberry Pi. I'm using [Supervisor](http://supervisord.org/)
 as the process manager, so the stream client runs automatically, even when the device
@@ -94,9 +133,5 @@ Test that it works and then you're ready for local network debugging!
 
 ## Resources
 
+- https://picamera.readthedocs.io/en/latest/recipes1.html#capturing-to-a-network-stream
 - https://picamera.readthedocs.io/en/latest/recipes2.html#web-streaming
-- https://www.pyimagesearch.com/2019/04/15/live-video-streaming-over-network-with-opencv-and-imagezmq/
-- https://linuxize.com/post/how-to-install-raspbian-on-raspberry-pi/
-- https://www.raspberrypi.org/documentation/usage/camera/raspicam/
-- https://raspberrypi.stackexchange.com/questions/31705/capturing-video-in-low-light
-- https://pimylifeup.com/raspberry-pi-light-sensor/
