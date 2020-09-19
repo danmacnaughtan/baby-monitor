@@ -28,7 +28,7 @@ the frontend of the application requires a simple username and password.
 
 Copy over the `server/` directory to your choice of hosting service (or home server). Make
 sure Python 3 and Pipenv are installed. Run `pipenv sync` to make sure all dependencies
-are installed. Run `pipenv run uvicorn main:app` to change the server.
+are installed. Run `pipenv run uvicorn main:app` to start.
 
 I recommend using something like [Supervisor](http://supervisord.org/) to manage the
 server process. See [this section](running-the-streaming-client-on-the-raspberry-pi) for
